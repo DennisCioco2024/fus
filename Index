@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive File Manager</title>
+    <script src="https://apis.google.com/js/api.js"></script>
+</head>
+<body>
+    <h1>Google Drive File Manager</h1>
+    <button id="login-button">Login with Google</button>
+    <div id="dashboard" style="display: none;">
+        <h2>Welcome, <span id="user-name"></span></h2>
+        <input type="file" id="file-input" />
+        <button id="upload-button">Upload File</button>
+    </div>
+
+    <script>
+        const CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; // Replace with your client ID
+        const API_KEY = 'YOUR_GOOGLE_API_KEY'; // Replace with your API key
+        const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+        let tokenClient;
+
+        function handleClientLoad() {
+            gapi.load('client', initClient);
+        }
+
+        function initClient() {
+            gapi.client.init({
+                apiKey: API_KEY,
+                discoveryDocs: DISCOVERY_DOCS,
+            }).then(() => {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: SCOPES,
+                    callback: (response) => {
+                        if (response.access_token) {
+                            showDashboard(response.access_token);
+                        }
+                    },
+                });
+
+                document.getElementById('login-button').addEventListener('click', () => {
+                    tokenClient.requestAccessToken();
+                });
+            });
+        }
+
+        function showDashboard(accessToken) {
+            document.getElementById('login-button').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+
+            gapi.client.setToken({ access_token: accessToken });
+            gapi.client.drive.about.get({ fields: 'user' }).then(response => {
+                const user = response.result.user;
+                document.getElementById('user-name').textContent = user.displayName;
+            });
+
+            document.getElementById('upload-button').addEventListener('click', () => {
+                const fileInput = document.getElementById('file-input').files[0];
+                if (fileInput) {
+                    uploadFile(fileInput, accessToken);
+                }
+            });
+        }
+
+        function uploadFile(file, accessToken) {
+            const metadata = {
+                name: file.name,
+                mimeType: file.type,
+            };
+
+            const formData = new FormData();
+            formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            formData.append('file', file);
+
+            fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+                body: formData,
+            }).then(response => response.json())
+              .then(data => {
+                  alert('File uploaded successfully!');
+              });
+        }
+
+        handleClientLoad();
+    </script>
+</body>
+</html>
